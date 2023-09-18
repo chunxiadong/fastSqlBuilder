@@ -1,0 +1,17 @@
+package com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path;
+
+/* 
+* 说明：每个实体类拥有一个path类，对应实体类为：Demo2 
+* 建议：未使用的path类不要提交到代码仓库 
+* path类在服务启动时自动更新，基本不需手动维护。 若需手动更新，请参考BasePathClassCreator类的注释 
+*/ 
+
+public class Demo2Path {
+	public static final String val = "demo2.val";
+	public static final String name = "demo2.name";
+	public static final String description = "demo2.description";
+	public static final String id = "demo2.id";
+	public static final String beginTime = "demo2.begin_time";
+	public static final String endTime = "demo2.end_time";
+	public static final String tableName = "demo2";
+}

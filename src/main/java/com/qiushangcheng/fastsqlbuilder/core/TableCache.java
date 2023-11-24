@@ -1,8 +1,6 @@
 package com.qiushangcheng.fastsqlbuilder.core;
 
-import com.qiushangcheng.fastsqlbuilder.core.SqlBuilder;
 import com.qiushangcheng.fastsqlbuilder.util.ReflectionUtil;
-import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,7 +13,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @auther QiuShangcheng
  * @create 2023/8/12
  */
-@Slf4j
+//@Slf4j
 public class TableCache {
     private static final Map<Class, SqlBuilder.TableInfo> tableCache = new HashMap<>();
     private static final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -41,7 +39,7 @@ public class TableCache {
                 List<String> fieldList = ReflectionUtil.getFields(tableName, key);
                 tableInfo = new SqlBuilder.TableInfo(tableName, fieldList);
                 tableCache.put(key, tableInfo);
-                log.info("SqlBuildUtil: Init Db TableInfo, TableInfo={}", tableInfo);
+//                log.info("SqlBuildUtil: Init Db TableInfo, TableInfo={}", tableInfo);
             }
         } finally {
             writeLock.unlock();

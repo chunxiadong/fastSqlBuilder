@@ -1,6 +1,11 @@
 package com.qiushangcheng.fastsqlbuilder.config;
 
 import com.qiushangcheng.fastsqlbuilder.pathclass.BasePathClassCreator;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.time.StopWatch;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
 import org.springframework.context.annotation.Configuration;
 
 import javax.annotation.PostConstruct;
@@ -11,6 +16,8 @@ import javax.annotation.Resource;
  * @create 2023/8/12
  */
 
+@Slf4j
+@Aspect
 @Configuration
 public class FastSqlBuilderConfig {
     @Resource
@@ -36,5 +43,27 @@ public class FastSqlBuilderConfig {
 //        SqlBuilder.tenantId = "system_id";
         // 一条插入语句插入记录数量的最大限制，不配置则使用默认值（1000）
 //        SqlBuilder.maxInsertNum = 2000;
+    }
+
+    @Around("execution(* com.qiushangcheng.fastsqlbuilder.demo.repository.*.*(..))")
+    private Object around(ProceedingJoinPoint joinPoint) throws Throwable {
+        String sql = joinPoint.getSignature().toShortString();
+        String type = "normalSql";
+        boolean result = true;
+        StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        try {
+            return joinPoint.proceed();
+        } catch (Exception e) {
+            result = false;
+            throw e;
+        } finally {
+            stopWatch.stop();
+            long costTime = stopWatch.getTime();
+            if (costTime > 500L) {
+                type = "slowSql";
+            }
+            log.info("SqlMonitor report: sql={}, result={}, type={}, costTime={}ms", sql, result, type, costTime);
+        }
     }
 }

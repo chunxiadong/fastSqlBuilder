@@ -1,13 +1,9 @@
 package com.qiushangcheng.fastsqlbuilder.demo.repository;
 
 import com.qiushangcheng.fastsqlbuilder.core.*;
-import com.qiushangcheng.fastsqlbuilder.demo.po.Demo;
 import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.Demo1;
 import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path.Demo1Path;
-import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path.Demo2Path;
 import org.springframework.stereotype.Repository;
-
-import java.util.Arrays;
 
 /**
  * @auther QiuShangcheng
@@ -23,14 +19,14 @@ public class DemoRepository extends SqlExecutor {
         SqlExpressionCreator expressionCreator = FastSqlBuilder.getSqlExpressionCreator();
 
         /*插入示例
-        * insertField()默认表示插入所有字段，
-        * insertField(XXX, XXX, XXX)仅插入指定字段，
-        * insertField(true, XXX, XXX, XXX)忽略指定的字段，插入表中剩余字段
-        * */
+         * insertField()默认表示插入所有字段，
+         * insertField(XXX, XXX, XXX)仅插入指定字段，
+         * insertField(true, XXX, XXX, XXX)忽略指定的字段，插入表中剩余字段
+         * */
 
-//        // insertObject()插入
+        // insertObject()插入
 //        SqlBuildResult insertDemo1 = sqlBuilder.insertField().insertObject(demo1).build();
-//        System.out.println(update(insertDemo1));
+//        update(insertDemo1);
 //        SqlBuildResult insertDemo2 = sqlBuilder.insertField(true, Demo1Path.id).insertObject(demo1).build();
 //        System.out.println(update(insertDemo2));
 //        SqlBuildResult insertDemo3 = sqlBuilder.insertField(Demo1Path.name, Demo1Path.description, Demo1Path.val).insertObject(demo1).build();
@@ -46,14 +42,14 @@ public class DemoRepository extends SqlExecutor {
 //        System.out.println(update(paramInsert));
 
         /*查询示例
-        * select()默认查询表中所有字段，select(XXX, XXX, XXX)仅查询指定字段，
-        * select(List<SqlBuildResult> sqlBuildResults)查询嵌套语句
-        * select(List<SqlBuildResult> sqlBuildResults, XXX, XXX, XXX)查询嵌套语句和指定的字段
-        * */
+         * select()默认查询表中所有字段，select(XXX, XXX, XXX)仅查询指定字段，
+         * select(List<SqlBuildResult> sqlBuildResults)查询嵌套语句
+         * select(List<SqlBuildResult> sqlBuildResults, XXX, XXX, XXX)查询嵌套语句和指定的字段
+         * */
 
 //        // 简单查询
-//        SqlBuildResult select1 = sqlBuilder.select().where().equal(Demo1Path.id, 5).build();
-//        System.out.println(queryForObject(select1, Demo1.class));
+        SqlBuildResult select1 = sqlBuilder.select().where().equal(Demo1Path.id, 5).build();
+        System.out.println(queryForObject(select1, Demo1.class));
 //        SqlBuildResult select2 = sqlBuilder.select(Demo1Path.name, Demo1Path.description).build();
 //        System.out.println(query(select2, Demo1.class));
 //        // 嵌套查询
@@ -71,9 +67,9 @@ public class DemoRepository extends SqlExecutor {
 //        System.out.println(query(select6, Demo1.class));
 
         /*更新示例
-        * updateField()默认更新所有字段，
-        * updateField(XXX, XXX, XXX)仅更新指定字段
-        * */
+         * updateField()默认更新所有字段，
+         * updateField(XXX, XXX, XXX)仅更新指定字段
+         * */
 
 //        // updateObject()更新
 //        SqlBuildResult update1 = sqlBuilder.updateField(Demo1Path.name, Demo1Path.description).updateObject(demo1).where().equal(Demo1Path.id, 1).build();

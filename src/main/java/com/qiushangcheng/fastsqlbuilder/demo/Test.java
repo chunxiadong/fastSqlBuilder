@@ -1,7 +1,7 @@
 package com.qiushangcheng.fastsqlbuilder.demo;
 
 import com.qiushangcheng.fastsqlbuilder.config.FastSqlBuilderConfig;
-import com.qiushangcheng.fastsqlbuilder.pathclass.BasePathClassCreator;
+import com.qiushangcheng.fastsqlbuilder.pathclass.PathClassCreator;
 
 /**
  * @auther QiuShangcheng
@@ -42,8 +42,8 @@ public class Test {
 
 
     public static void refresh() {
-        BasePathClassCreator basePathClassCreator = new BasePathClassCreator();
-        BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(FastSqlBuilderConfig.entityPackage);
-        basePathClassCreator.setProperties(pathClassConfiguration, true);
+        PathClassCreator pathClassCreator = new PathClassCreator();
+        PathClassCreator.Configuration pathClassConfiguration = PathClassCreator.Configuration.getInstance(FastSqlBuilderConfig.entityPackage);
+        pathClassCreator.setProperties(pathClassConfiguration, true);
     }
 }

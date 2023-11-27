@@ -1,13 +1,12 @@
 package com.qiushangcheng.fastsqlbuilder.config;
 
-import com.qiushangcheng.fastsqlbuilder.pathclass.BasePathClassCreator;
+import com.qiushangcheng.fastsqlbuilder.pathclass.PathClassCreator;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.time.StopWatch;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.jdbc.BadSqlGrammarException;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -22,7 +21,7 @@ import javax.annotation.Resource;
 @Configuration
 public class FastSqlBuilderConfig {
     @Resource
-    private BasePathClassCreator basePathClassCreator;
+    private PathClassCreator pathClassCreator;
 
     // 扫描数据库对应的Entity类的路径
     public static final String entityPackage = "com.qiushangcheng.fastsqlbuilder.demo.repository.entity";
@@ -36,11 +35,11 @@ public class FastSqlBuilderConfig {
 
     @PostConstruct
     public void init() {
-        BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(entityPackage);
-//        pathClassConfiguration.setPathPackage();
-//        pathClassConfiguration.setEntityManagerPathPackage();
-//        pathClassConfiguration.setModuleName();
-        basePathClassCreator.setProperties(pathClassConfiguration, false);
+        PathClassCreator.Configuration configuration = PathClassCreator.Configuration.getInstance(entityPackage);
+//        configuration.setModuleName();
+//        configuration.setPathPackage();
+//        configuration.setEntityManagerPathPackage();
+        pathClassCreator.setProperties(configuration, false);
         // 一条插入语句插入记录数量的最大限制，不配置则使用默认值（1000）
 //        SqlBuilder.maxInsertNum = 2000;
     }

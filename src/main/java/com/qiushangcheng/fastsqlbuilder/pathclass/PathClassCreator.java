@@ -2,7 +2,6 @@ package com.qiushangcheng.fastsqlbuilder.pathclass;
 
 import com.qiushangcheng.fastsqlbuilder.util.HumpAndUnderlineConvertUtil;
 import com.qiushangcheng.fastsqlbuilder.util.ReflectionUtil;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -30,39 +29,39 @@ import java.util.Set;
  **/
 @Slf4j
 @Component
-public class BasePathClassCreator {
+public class PathClassCreator {
     /**
      * 手动触发path类更新, 方法如下：
      * public static void main(String[] args) {
-     * BasePathClassCreator basePathClassCreator = new BasePathClassCreator();
-     * BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(FastSqlBuilderConfig.entityPackage);
+     * PathClassCreator basePathClassCreator = new PathClassCreator();
+     * PathClassCreator.Configuration configuration = PathClassCreator.Configuration.getInstance(FastSqlBuilderConfig.entityPackage);
      * basePathClassCreator.setProperties(pathClassConfiguration, false);
      * }
      */
 
     @Resource
     private EnvironmentCheck environmentCheck;
-    private PathClassConfiguration configuration;
+    private Configuration configuration;
 
     @Data
-    public static class PathClassConfiguration {
+    public static class Configuration {
         private String pathPackage; // path类的存放路径
         private String entityPackage; // 扫描数据库对应的Entity类的路径
         private String entityManagerPathPackage; // 扫描@SqlBuilderPath的路径
         private String moduleName = ""; // path类的存放路径所在子模块的模块名称
 
-        public static PathClassConfiguration getInstance(String entityPackage) {
-            return new PathClassConfiguration(entityPackage);
+        public static Configuration getInstance(String entityPackage) {
+            return new Configuration(entityPackage);
         }
 
-        public PathClassConfiguration(String entityPackage) {
+        public Configuration(String entityPackage) {
             this.entityPackage = entityPackage;
             this.pathPackage = entityPackage + ".path";
             this.entityManagerPathPackage = entityPackage;
         }
     }
 
-    public void setProperties(PathClassConfiguration configuration, boolean manuallyTriggered) {
+    public void setProperties(Configuration configuration, boolean manuallyTriggered) {
         this.configuration = configuration;
         String folder = System.getProperty("user.dir") + configuration.getModuleName() + "/src/main/java/" + configuration.getPathPackage().replace(".", "/") + "/";
         log.info("SqlBuildUtil: path class folder={}", folder);

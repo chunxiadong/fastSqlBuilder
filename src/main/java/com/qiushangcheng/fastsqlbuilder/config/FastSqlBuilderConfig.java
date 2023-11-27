@@ -36,7 +36,7 @@ public class FastSqlBuilderConfig {
 
     @PostConstruct
     public void init() {
-        BasePathClassCreator.PathClassConfiguration pathClassConfiguration = new BasePathClassCreator.PathClassConfiguration(entityPackage);
+        BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(entityPackage);
 //        pathClassConfiguration.setPathPackage();
 //        pathClassConfiguration.setEntityManagerPathPackage();
 //        pathClassConfiguration.setModuleName();

@@ -7,6 +7,7 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.BadSqlGrammarException;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.Resource;
@@ -36,26 +37,25 @@ public class FastSqlBuilderConfig {
     @PostConstruct
     public void init() {
         BasePathClassCreator.PathClassConfiguration pathClassConfiguration = new BasePathClassCreator.PathClassConfiguration(entityPackage);
-        basePathClassCreator.setProperties(pathClassConfiguration);
-        basePathClassCreator.refresh(false);
-
-        // 若使用mycat且区分租户进行配置，其他情况下不配置该参数
-//        SqlBuilder.tenantId = "system_id";
+//        pathClassConfiguration.setPathPackage();
+//        pathClassConfiguration.setEntityManagerPathPackage();
+//        pathClassConfiguration.setModuleName();
+        basePathClassCreator.setProperties(pathClassConfiguration, false);
         // 一条插入语句插入记录数量的最大限制，不配置则使用默认值（1000）
 //        SqlBuilder.maxInsertNum = 2000;
     }
 
-    @Around("execution(* com.qiushangcheng.fastsqlbuilder.demo.repository.*.*(..))")
+    @Around("execution(* com.qiushangcheng.fastsqlbuilder.demo.repository..*.*(..)))")
     private Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         String sql = joinPoint.getSignature().toShortString();
         String type = "normalSql";
-        boolean result = true;
+        String result = "success";
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
         try {
             return joinPoint.proceed();
         } catch (Exception e) {
-            result = false;
+            result = "failed";
             throw e;
         } finally {
             stopWatch.stop();

@@ -1,9 +1,12 @@
-package com.qiushangcheng.fastsqlbuilder.demo.repository;
+package com.qiushangcheng.fastsqlbuilder.demo.repository.primary;
 
 import com.qiushangcheng.fastsqlbuilder.core.*;
 import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.Demo1;
 import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path.Demo1Path;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+
+import javax.annotation.Resource;
 
 /**
  * @auther QiuShangcheng
@@ -11,6 +14,8 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class DemoRepository extends SqlExecutor {
+    @Resource
+    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     public void demo(Demo1 demo1) {
         // sql构建器，sqlBuilder对象非线程安全，勿定义为线程共享对象
@@ -26,7 +31,7 @@ public class DemoRepository extends SqlExecutor {
 
         // insertObject()插入
 //        SqlBuildResult insertDemo1 = sqlBuilder.insertField().insertObject(demo1).build();
-//        update(insertDemo1);
+//        update(insertDemo1, namedParameterJdbcTemplate);
 //        SqlBuildResult insertDemo2 = sqlBuilder.insertField(true, Demo1Path.id).insertObject(demo1).build();
 //        System.out.println(update(insertDemo2));
 //        SqlBuildResult insertDemo3 = sqlBuilder.insertField(Demo1Path.name, Demo1Path.description, Demo1Path.val).insertObject(demo1).build();
@@ -48,8 +53,8 @@ public class DemoRepository extends SqlExecutor {
          * */
 
 //        // 简单查询
-        SqlBuildResult select1 = sqlBuilder.select().where().equal(Demo1Path.id, 5).build();
-        System.out.println(queryForObject(select1, Demo1.class));
+        SqlBuildResult select1 = sqlBuilder.select().where().equal(Demo1Path.id, 35).build();
+        System.out.println(queryForObject(select1, namedParameterJdbcTemplate, Demo1.class));
 //        SqlBuildResult select2 = sqlBuilder.select(Demo1Path.name, Demo1Path.description).build();
 //        System.out.println(query(select2, Demo1.class));
 //        // 嵌套查询

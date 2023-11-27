@@ -1,17 +1,7 @@
 package com.qiushangcheng.fastsqlbuilder.demo;
 
 import com.qiushangcheng.fastsqlbuilder.config.FastSqlBuilderConfig;
-import com.qiushangcheng.fastsqlbuilder.core.FastSqlBuilder;
-import com.qiushangcheng.fastsqlbuilder.core.SqlBuildResult;
-import com.qiushangcheng.fastsqlbuilder.core.SqlBuilder;
-import com.qiushangcheng.fastsqlbuilder.core.SqlExpressionCreator;
-import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.Demo1;
-import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path.Demo1Path;
-import com.qiushangcheng.fastsqlbuilder.demo.repository.entity.path.Demo2Path;
 import com.qiushangcheng.fastsqlbuilder.pathclass.BasePathClassCreator;
-
-import java.util.ArrayList;
-import java.util.Arrays;
 
 /**
  * @auther QiuShangcheng
@@ -19,15 +9,15 @@ import java.util.Arrays;
  */
 public class Test {
     public static void main(String[] args) {
-        SqlExpressionCreator expressionCreator = FastSqlBuilder.getSqlExpressionCreator();
-        SqlBuilder sqlBuilder = FastSqlBuilder.getSqlBuilder(Demo1.class);
-
-        ArrayList<Demo1> list = new ArrayList<>();
-        Demo1 demo1 = new Demo1(null, "name", "des", null, null, 1);
-        list.add(new Demo1(null, "name", "des", null, null, 1));
-        list.add(new Demo1(null, "name", "des", null, null, 2));
-        SqlBuildResult insert = sqlBuilder.insertField().insertObject(demo1).build(false);
-        SqlBuildResult insert1 = sqlBuilder.insertField(true, Demo1Path.id, Demo1Path.val).insertObject(demo1).build();
+//        SqlExpressionCreator expressionCreator = FastSqlBuilder.getSqlExpressionCreator();
+//        SqlBuilder sqlBuilder = FastSqlBuilder.getSqlBuilder(Demo1.class);
+//
+//        ArrayList<Demo1> list = new ArrayList<>();
+//        Demo1 demo1 = new Demo1(null, "name", "des", null, null, 1);
+//        list.add(new Demo1(null, "name", "des", null, null, 1));
+//        list.add(new Demo1(null, "name", "des", null, null, 2));
+//        SqlBuildResult insert = sqlBuilder.insertField().insertObject(demo1).build(false);
+//        SqlBuildResult insert1 = sqlBuilder.insertField(true, Demo1Path.id, Demo1Path.val).insertObject(demo1).build();
 //        SqlBuildResult insert2 = sqlBuilder.insertField(Demo1Path.name, Demo1Path.description).insertObject(demo1).build();
 //        SqlBuildResult insert3 = sqlBuilder.insertField().batchInsert(list).build();
 //        SqlBuildResult insert4 = sqlBuilder.insertField(Demo1Path.name, Demo1Path.description).batchInsert(list).build();
@@ -50,9 +40,10 @@ public class Test {
 
     }
 
-    public static void refreshPathClass() {
+
+    public static void refresh() {
         BasePathClassCreator basePathClassCreator = new BasePathClassCreator();
-        basePathClassCreator.setProperties(new BasePathClassCreator.PathClassConfiguration(FastSqlBuilderConfig.entityPackage));
-        basePathClassCreator.refresh(true);
+        BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(FastSqlBuilderConfig.entityPackage);
+        basePathClassCreator.setProperties(pathClassConfiguration, true);
     }
 }

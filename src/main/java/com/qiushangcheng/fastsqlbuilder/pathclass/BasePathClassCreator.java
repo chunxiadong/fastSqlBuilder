@@ -35,8 +35,8 @@ public class BasePathClassCreator {
      * 手动触发path类更新, 方法如下：
      * public static void main(String[] args) {
      * BasePathClassCreator basePathClassCreator = new BasePathClassCreator();
-     * basePathClassCreator.setProperties(new BasePathClassCreator.PathClassConfiguration(FastSqlBuilderConfig.entityPackage));
-     * basePathClassCreator.refresh(true);
+     * BasePathClassCreator.PathClassConfiguration pathClassConfiguration = BasePathClassCreator.PathClassConfiguration.getInstance(FastSqlBuilderConfig.entityPackage);
+     * basePathClassCreator.setProperties(pathClassConfiguration, false);
      * }
      */
 
@@ -45,23 +45,14 @@ public class BasePathClassCreator {
     private PathClassConfiguration configuration;
 
     @Data
-    @AllArgsConstructor
     public static class PathClassConfiguration {
         private String pathPackage; // path类的存放路径
         private String entityPackage; // 扫描数据库对应的Entity类的路径
         private String entityManagerPathPackage; // 扫描@SqlBuilderPath的路径
         private String moduleName = ""; // path类的存放路径所在子模块的模块名称
 
-        public PathClassConfiguration(String pathPackage, String entityPackage, String entityManagerPathPackage) {
-            this.pathPackage = pathPackage;
-            this.entityPackage = entityPackage;
-            this.entityManagerPathPackage = entityManagerPathPackage;
-        }
-
-        public PathClassConfiguration(String entityPackage, String entityManagerPathPackage) {
-            this.entityPackage = entityPackage;
-            this.pathPackage = entityPackage + ".path";
-            this.entityManagerPathPackage = entityManagerPathPackage;
+        public static PathClassConfiguration getInstance(String entityPackage) {
+            return new PathClassConfiguration(entityPackage);
         }
 
         public PathClassConfiguration(String entityPackage) {
@@ -71,13 +62,10 @@ public class BasePathClassCreator {
         }
     }
 
-    public void setProperties(PathClassConfiguration configuration) {
+    public void setProperties(PathClassConfiguration configuration, boolean manuallyTriggered) {
         this.configuration = configuration;
         String folder = System.getProperty("user.dir") + configuration.getModuleName() + "/src/main/java/" + configuration.getPathPackage().replace(".", "/") + "/";
         log.info("SqlBuildUtil: path class folder={}", folder);
-    }
-
-    public void refresh(boolean manuallyTriggered) {
         if (manuallyTriggered || environmentCheck.check()) {
             initPathClass();
         }

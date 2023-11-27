@@ -13,22 +13,15 @@ import java.util.List;
  * @create 2023/8/12
  */
 public class SqlExecutor {
-    @Resource
-    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
-
-    public int update(SqlBuildResult sqlBuildResult) {
+    public int update(SqlBuildResult sqlBuildResult, NamedParameterJdbcTemplate namedParameterJdbcTemplate) {
         return namedParameterJdbcTemplate.update(sqlBuildResult.getSql(), sqlBuildResult.getMapSqlParameterSource());
     }
 
-    public <T> List<T> query(SqlBuildResult sqlBuildResult, Class<T> target) {
+    public <T> List<T> query(SqlBuildResult sqlBuildResult, NamedParameterJdbcTemplate namedParameterJdbcTemplate, Class<T> target) {
         return namedParameterJdbcTemplate.query(sqlBuildResult.getSql(), sqlBuildResult.getMapSqlParameterSource(), new BeanPropertyRowMapper<>(target));
     }
 
-    public <T> T queryForObject(SqlBuildResult sqlBuildResult, Class<T> target) {
+    public <T> T queryForObject(SqlBuildResult sqlBuildResult, NamedParameterJdbcTemplate namedParameterJdbcTemplate, Class<T> target) {
         return DataAccessUtils.singleResult(namedParameterJdbcTemplate.query(sqlBuildResult.getSql(), sqlBuildResult.getMapSqlParameterSource(), new BeanPropertyRowMapper<>(target)));
-    }
-
-    public NamedParameterJdbcTemplate getNamedParameterJdbcTemplate() {
-        return this.namedParameterJdbcTemplate;
     }
 }

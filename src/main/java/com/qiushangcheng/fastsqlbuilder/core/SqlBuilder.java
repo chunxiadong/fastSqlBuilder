@@ -28,7 +28,6 @@ public class SqlBuilder {
     private int sqlType = 0;
     private int insertNumCount = 1;
     public static int maxInsertNum = 1000;
-    public static String tenantId = "*"; // mycat的租户Id字段
     private static final String PARAM_PREFIX = "param_";
 
     public SqlBuilder(TableInfo tableInfo) {
@@ -110,26 +109,6 @@ public class SqlBuilder {
 
     /*插入*/
 
-    /**
-     * 由于mycat的限制，mycat的租户id特殊处理,写操作时取消前面的表名
-     *
-     * @param field
-     */
-    private String tenantIdSpecialDeal(String field) {
-        if (!StringUtils.equals("*", tenantId)) {
-            if (field.endsWith(tenantId)) {
-                try {
-                    String[] str = field.split("\\.");
-                    return str[1];
-                } catch (Exception e) {
-                    log.warn("TenantId Exception: {}", e.getMessage());
-                    return field;
-                }
-            }
-        }
-        return field;
-    }
-
     public SqlBuilder insertField(String... fields) {
         return insertField(new ArrayList<>(Arrays.asList(fields)), false);
     }
@@ -147,17 +126,17 @@ public class SqlBuilder {
                 insertList.addAll(tableInfo.getFieldList());
                 insertList.removeAll(fields);
                 for (String s : insertList) {
-                    sb.append(tenantIdSpecialDeal(s)).append(", ");
+                    sb.append(s).append(", ");
                 }
             } else {
                 for (String s : fields) {
-                    sb.append(tenantIdSpecialDeal(s)).append(", ");
+                    sb.append(s).append(", ");
                 }
                 insertList.addAll(fields);
             }
         } else {
             for (String field : tableInfo.getFieldList()) {
-                sb.append(tenantIdSpecialDeal(field)).append(", ");
+                sb.append(field).append(", ");
             }
             insertList.addAll(tableInfo.getFieldList());
         }
@@ -295,7 +274,7 @@ public class SqlBuilder {
         if (!CollectionUtils.isEmpty(map)) {
             for (String field : updateList) {
                 String p = PARAM_PREFIX + index++;
-                sb.append(tenantIdSpecialDeal(field)).append(" = ").append(":").append(p).append(", ");
+                sb.append(field).append(" = ").append(":").append(p).append(", ");
                 mapSqlParameterSource.addValue(p, map.get(field));
             }
         }

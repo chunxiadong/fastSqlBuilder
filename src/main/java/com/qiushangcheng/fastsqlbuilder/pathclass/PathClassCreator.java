@@ -33,9 +33,9 @@ public class PathClassCreator {
     /**
      * 手动触发path类更新, 方法如下：
      * public static void main(String[] args) {
-     * PathClassCreator basePathClassCreator = new PathClassCreator();
+     * PathClassCreator pathClassCreator = new PathClassCreator();
      * PathClassCreator.Configuration configuration = PathClassCreator.Configuration.getInstance(FastSqlBuilderConfig.entityPackage);
-     * basePathClassCreator.setProperties(pathClassConfiguration, false);
+     * pathClassCreator.setProperties(configuration, false);
      * }
      */
 

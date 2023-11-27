@@ -43,7 +43,7 @@ public class Test {
 
     public static void refresh() {
         PathClassCreator pathClassCreator = new PathClassCreator();
-        PathClassCreator.Configuration pathClassConfiguration = PathClassCreator.Configuration.getInstance(FastSqlBuilderConfig.entityPackage);
-        pathClassCreator.setProperties(pathClassConfiguration, true);
+        PathClassCreator.Configuration configuration = PathClassCreator.Configuration.getInstance(FastSqlBuilderConfig.entityPackage);
+        pathClassCreator.setProperties(configuration, true);
     }
 }

@@ -1,0 +1,611 @@
+package com.hikvision.ipsc.convergence.alarmdetection.common.utils;
+
+import cn.hutool.core.util.BooleanUtil;
+import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSONObject;
+import com.amazonaws.http.apache.request.impl.HttpGetWithBody;
+import com.hikvision.ipsc.convergence.alarmdetection.common.domain.EzvizRequest;
+import com.hikvision.ipsc.convergence.alarmdetection.common.domain.EzvizResponse;
+import com.hikvision.ipsc.convergence.alarmdetection.common.dto.isapi.DeviceAuthorizationInfo;
+import com.hikvision.ipsc.convergence.alarmdetection.common.dto.isapi.EzvizAuthenticationInfo;
+import com.hikvision.ipsc.convergence.rack.common.bean.exception.lap.SystemRuntimeException;
+import com.sun.research.ws.wadl.HTTPMethods;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.http.*;
+import org.apache.http.client.HttpRequestRetryHandler;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.*;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.LayeredConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.TrustStrategy;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContexts;
+import org.apache.http.util.EntityUtils;
+import org.glassfish.jersey.internal.guava.ThreadFactoryBuilder;
+import org.springframework.http.MediaType;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLHandshakeException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.InterruptedIOException;
+import java.net.UnknownHostException;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static com.hikvision.ipsc.convergence.rack.common.bean.exception.vms.errorcode.VmsErrorCode.INTERNAL_CALL_FAILED;
+
+
+/**
+ * @author cxl
+ * @Description: 采用apache的httpClient, 本来想采用OpenFeign, 当感觉框架太重
+ * @date 2020/12/16 14:06
+ */
+
+@Slf4j
+public class HttpConnectionUtil {
+    private static final int CONNECTION_TIMEOUT = 5000;//从连接池中获取可用连接超时
+
+    private static final int CONNECTION_REQUEST_TIMEOUT = 5000;//请求超时时间
+
+    public static final int SOCKET_TIMEOUT = 21000;// 数据读取等待超时
+
+    public static final String HTTPS = "https";// https
+
+    public static final String DEFAULT_ENCODING = "UTF-8";// 默认编码
+
+    private final static String[] errorFlag = {"statusValue", "statusCode", "subStatusCode", "errorCode"};
+
+    private static final PoolingHttpClientConnectionManager httpClientConnectionManager;
+
+    private static final HttpRequestRetryHandler httpRequestRetryHandler;
+
+    private static final CloseableHttpClient HTTP_CLIENT;
+    private static final CloseableHttpClient HTTPS_CLIENT;
+
+    static {
+        ConnectionSocketFactory plainSocketFactory = PlainConnectionSocketFactory.getSocketFactory();
+        LayeredConnectionSocketFactory sslSocketFactory = SSLConnectionSocketFactory.getSocketFactory();
+        Registry<ConnectionSocketFactory> registry = RegistryBuilder.<ConnectionSocketFactory>create().register("http", plainSocketFactory)
+                .register("https", sslSocketFactory).build();
+        httpClientConnectionManager = new PoolingHttpClientConnectionManager(registry);
+        httpClientConnectionManager.setMaxTotal(500);
+        httpClientConnectionManager.setDefaultMaxPerRoute(100);
+
+        httpRequestRetryHandler = (exception, executionCount, httpContext) -> {
+            if (executionCount > 3) {
+                //重试超过3次,放弃请求
+                log.error("retry has more than 3 time, give up request");
+                return false;
+            }
+            if (exception instanceof NoHttpResponseException) {
+                //服务器没有响应,可能是服务器断开了连接,应该重试
+                log.error("receive no response from server, retry: " + executionCount);
+                return true;
+            }
+            if (exception instanceof SSLHandshakeException) {
+                // SSL握手异常
+                log.error("SSL hand shake exception");
+                return false;
+            }
+            if (exception instanceof InterruptedIOException) {
+                log.error("InterruptedIOException");
+                return false;
+            }
+            if (exception instanceof UnknownHostException) {
+                // 服务器不可达
+                log.error("server host unknown");
+                return false;
+            }
+            if (exception instanceof SSLException) {
+                log.error("SSLException");
+                return false;
+            }
+            HttpClientContext context = HttpClientContext.adapt(httpContext);
+            HttpRequest request = context.getRequest();
+            if (!(request instanceof HttpEntityEnclosingRequest)) {
+                //如果请求不是关闭连接的请求
+                return true;
+            }
+            return false;
+        };
+
+        HTTPS_CLIENT = createSSLInsecureClient();
+        HTTP_CLIENT = createClient();
+
+        //开启监控线程,对异常和空闲线程进行关闭
+        ScheduledExecutorService monitorExecutor = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder()
+                .setNameFormat("http-client-monitor-").build());
+        monitorExecutor.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                //关闭异常连接
+                httpClientConnectionManager.closeExpiredConnections();
+                //关闭5s空闲的连接
+                httpClientConnectionManager.closeIdleConnections(5, TimeUnit.SECONDS);
+                //log.info("close expired and idle for over 5s connection");
+            }
+        }, 5, 10, TimeUnit.SECONDS);
+
+    }
+
+
+    /**
+     * 现在发送请求的方法太过混乱，难以管理。以后只维护以下范围内的几个方法，后续新增的代码建议只使用以下这些
+     **/
+
+
+    /**
+     * 解析了萤石和设备的错误码，返回指定接收类
+     */
+    public static <T> EzvizResponse<T> sendEzvizRequest(EzvizRequest ezvizRequest, Class<T> rspTargetClass, boolean printRspBody) {
+        String url = ezvizRequest.getUrl();
+        HTTPMethods method = ezvizRequest.getMethod();
+        String contentType = ezvizRequest.getContentType();
+        String body = ezvizRequest.getBody();
+        Map<String, String> reqMap = ezvizRequest.getParams();
+        String accessToken = ezvizRequest.getAccessToken();
+        String deviceSerial = ezvizRequest.getDeviceSerial();
+        EzvizResponse<T> result = new EzvizResponse<>();
+        long costTime = -1L;
+        if (StringUtils.isEmpty(url)) {
+            log.error("Http request error: url is empty");
+            result.setMsg("url is empty");
+            return result;
+        }
+
+        List<NameValuePair> params = new ArrayList<>();
+        if (reqMap != null && reqMap.keySet().size() > 0) {
+            for (Map.Entry<String, String> entity : reqMap.entrySet()) {
+                params.add(new BasicNameValuePair(entity.getKey(), entity.getValue()));
+            }
+        }
+
+        CloseableHttpClient httpClient;
+        if (url.startsWith(HTTPS)) {
+            // 创建一个SSL信任所有证书的httpClient对象
+            httpClient = createSSLInsecureClient();
+        } else {
+            httpClient = createClient();
+        }
+        CloseableHttpResponse response = null;
+        try {
+            HttpRequestBase Http = null;
+            if (method == HTTPMethods.PUT) {
+                HttpPut httpPut;
+                if (params.size() > 0) {
+                    URIBuilder builder = new URIBuilder(url);
+                    builder.setParameters(params);
+                    httpPut = new HttpPut(builder.build());
+                } else {
+                    httpPut = new HttpPut(url);
+                }
+                if (StringUtils.isNotBlank(contentType) && StringUtils.isNotBlank(body)) {
+                    httpPut.setEntity(new StringEntity(body, ContentType.create(contentType, DEFAULT_ENCODING)));
+                }
+                Http = httpPut;
+            }
+            if (method == HTTPMethods.DELETE) {
+                HttpDelete httpDelete;
+                if (params.size() > 0) {
+                    URIBuilder builder = new URIBuilder(url);
+                    builder.setParameters(params);
+                    httpDelete = new HttpDelete(builder.build());
+                } else {
+                    httpDelete = new HttpDelete(url);
+                }
+                Http = httpDelete;
+            }
+            if (method == HTTPMethods.POST) {
+                HttpPost httpPost;
+                if (params.size() > 0) {
+                    URIBuilder builder = new URIBuilder(url);
+                    builder.setParameters(params);
+                    httpPost = new HttpPost(builder.build());
+                } else {
+                    httpPost = new HttpPost(url);
+                }
+                if (StringUtils.isNotBlank(contentType) && StringUtils.isNotBlank(body)) {
+                    httpPost.setEntity(new StringEntity(body, ContentType.create(contentType, DEFAULT_ENCODING)));
+                }
+                Http = httpPost;
+            }
+            if (method == HTTPMethods.GET) {
+                HttpGet httpGet;
+                if (params.size() > 0) {
+                    URIBuilder builder = new URIBuilder(url);
+                    builder.setParameters(params);
+                    httpGet = new HttpGet(builder.build());
+                } else {
+                    httpGet = new HttpGet(url);
+                }
+                Http = httpGet;
+            }
+
+            RequestConfig requestConfig = RequestConfig.custom()
+                    .setConnectTimeout(CONNECTION_TIMEOUT)   //设置连接超时时间
+                    .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT) // 设置请求超时时间
+                    .setSocketTimeout(SOCKET_TIMEOUT)
+                    .setRedirectsEnabled(true)//默认允许自动重定向
+                    .build();
+            assert Http != null;
+            Http.setConfig(requestConfig);
+
+            Http.addHeader("EZO-AccessToken", accessToken);
+            Http.addHeader("EZO-DeviceSerial", deviceSerial);
+            Http.addHeader("EZO-Date", new Date().toString());
+
+            // 发送请求，并接收响应
+            StopWatch watch = new StopWatch();
+            watch.start();
+            response = httpClient.execute(Http);
+            watch.stop();
+            costTime = watch.getTime();
+            log.info("Http request report: method={}, url={}, deviceSerial={}, costTime={}ms, token={}, body={}, herders={}",
+                    method, url, deviceSerial, costTime, accessToken, body, response);
+            result = parseIsapiResponse(response, rspTargetClass, printRspBody);
+        } catch (Exception e) {
+            log.error("Http request error: method={}, url={}, deviceSerial={}, costTime={}ms, token={}, body={}, exception={}",
+                    method, url, deviceSerial, costTime, accessToken, body, e.toString());
+        } finally {
+            if (response != null) {
+                try {
+                    response.close();
+                } catch (IOException e) {
+                    log.error("closeResource -> close response failed, cause:" + e);
+                    e.printStackTrace();
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * -----------------------------------------------------------------------------------------------------分界线---------------------------------------------------------------------------------------------------------
+     **/
+
+
+    private static <T> EzvizResponse<T> parseIsapiResponse(CloseableHttpResponse response, Class<T> parseClass, boolean printRspBody) {
+        EzvizResponse<T> result = new EzvizResponse<>();
+        try {
+            if (Objects.isNull(response)) {
+                log.info("Http request error: response is empty");
+                result.setCode("-1");
+                result.setMsg("response empty");
+                return result;
+            }
+
+            int status = response.getStatusLine().getStatusCode();
+            if (status != 200) {
+                log.info("Http request error: status != 200");
+                result.setCode(status + "");
+                result.setMsg("response status not support");
+                return result;
+            }
+
+            Header messageHeader = response.getFirstHeader("EZO-Message");
+            String ezoMessage = Objects.nonNull(messageHeader) ? messageHeader.getValue() : null;
+            Header codeHeader = response.getFirstHeader("EZO-Code");
+            if (Objects.nonNull(codeHeader)) {
+                if (!StringUtils.equals("200", codeHeader.getValue())) {
+                    log.info("Http request error: EZO-Code != 200");
+                    result.setMsg(ezoMessage);
+                    result.setCode(codeHeader.getValue());
+                    return result;
+                }
+                result.setCode(codeHeader.getValue());
+            }
+            result.setMsg(ezoMessage);
+
+            String read = "";
+            try {
+                StringBuilder sb = new StringBuilder();
+                BufferedReader br;
+                HttpEntity entity = response.getEntity();
+                if (entity != null) {
+                    InputStreamReader inputStreamReader = new InputStreamReader(entity.getContent(), DEFAULT_ENCODING);
+                    br = new BufferedReader(inputStreamReader);
+                    String s = null;
+                    while ((s = br.readLine()) != null) {
+                        sb.append(s);
+                    }
+                }
+                EntityUtils.consume(entity);
+                read = sb.toString();
+                if (printRspBody) {
+                    log.info("Http request report: rspBody={}", read);
+                }
+                if (parseClass == String.class) {
+                    result.setData((T) read);
+                    return result;
+                }
+                // 返回结果是XML格式
+                if (read.contains("</") && read.contains(">")) {
+                    if (!read.startsWith("<") || !read.endsWith(">")) {
+                        int startIndex = read.indexOf("<");
+                        int endIndex = read.lastIndexOf(">");
+                        read = read.substring(startIndex, endIndex + 1);
+                    }
+                    if (StringUtils.containsAny(read, errorFlag)) {
+                        EzvizResponse.ResponseStatus responseStatus = XmlUtil.xmlToObject(read, EzvizResponse.ResponseStatus.class);
+                        result.setResponseStatus(responseStatus);
+                        if (parseClass == EzvizResponse.ResponseStatus.class) {
+                            result.setData((T) responseStatus);
+                        }
+                        return result;
+                    }
+                    result.setData(XmlUtil.xmlToObject(read, parseClass));
+                }
+                // 不是XML就是JSON
+                else {
+                    if (!read.startsWith("{") || !read.endsWith("}")) {
+                        int startIndex = read.indexOf("{");
+                        int endIndex = read.lastIndexOf("}");
+                        read = read.substring(startIndex, endIndex + 1);
+                    }
+                    if (StringUtils.containsAny(read, errorFlag)) {
+                        EzvizResponse.ResponseStatus responseStatus = JSONObject.parseObject(read, EzvizResponse.ResponseStatus.class);
+                        result.setResponseStatus(responseStatus);
+                        if (parseClass == EzvizResponse.ResponseStatus.class) {
+                            result.setData((T) responseStatus);
+                        }
+                        return result;
+                    }
+                    result.setData(JSONObject.parseObject(read, parseClass));
+                }
+            } catch (Exception e) {
+                result.setMsg("fail to parse ezviz object, msg=" + read);
+                log.error("Http request error: fail to parse ezviz object, exception={}", e.toString());
+            }
+        } finally {
+            log.info("Http request report: ezvizResponse={}", JSONObject.toJSONString(result));
+        }
+        return result;
+    }
+
+
+    /**
+     * 创建一个SSL信任所有证书的httpClient对象
+     *
+     * @return
+     */
+    public static CloseableHttpClient createSSLInsecureClient() {
+        try {
+            // 默认信任所有证书
+            SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(null, new TrustStrategy() {
+                @Override
+                public boolean isTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+                    return true;
+                }
+            }).build();
+            return createClient(sslContext);
+        } catch (KeyManagementException | NoSuchAlgorithmException | KeyStoreException e) {
+            e.printStackTrace();
+        }
+        return createClient();
+    }
+
+    public static CloseableHttpClient createClient() {
+        return HttpClients.custom().setConnectionManager(httpClientConnectionManager)
+                .setRetryHandler(httpRequestRetryHandler)
+                .setConnectionManagerShared(true)
+                .build();
+    }
+
+    public static CloseableHttpClient createClient(SSLContext sslContext) {
+        return HttpClients
+                .custom()
+                .setConnectionManager(httpClientConnectionManager)
+                .setSSLContext(sslContext)
+                .setSSLHostnameVerifier(new NoopHostnameVerifier())
+                .setRetryHandler(httpRequestRetryHandler)
+                .build();
+    }
+
+
+
+
+================================================================================================================================
+
+
+
+package com.hikvision.ipsc.convergence.alarmdetection.common.domain;
+
+import com.sun.research.ws.wadl.HTTPMethods;
+import lombok.Builder;
+import lombok.Data;
+
+/**
+ * @author qiushangcheng
+ * @date 2023/12/4
+ */
+
+@Data
+@Builder
+public class EzvizRequest {
+    private HTTPMethods method;
+    private String url;
+    private String deviceSerial;
+    private String accessToken;
+    private String domain;
+    private String body;
+    private Map<String, String> params;
+    private String contentType;
+}
+
+
+=================================================================================================================================
+
+
+
+
+package com.hikvision.ipsc.convergence.alarmdetection.common.domain;
+
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlProperty;
+import com.fasterxml.jackson.dataformat.xml.annotation.JacksonXmlRootElement;
+import com.hikvision.ipsc.convergence.rack.common.bean.exception.lap.SystemRuntimeApiException;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.Objects;
+
+/**
+ * @author weiwenchao
+ * @date 2023/5/17
+ */
+
+@Slf4j
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class EzvizResponse<T> {
+    private String code;
+    private String msg;
+    private T data;
+    private ResponseStatus responseStatus;
+
+    public T unWrapper(boolean checkData, String alarmErrorCode, String errMsg) {
+        if (data instanceof ResponseStatus) {
+            if (StringUtils.equals(this.code, "200")) {
+                return data;
+            }
+            String error = errMsg + ", call isapi error, error [" + code + ":" + msg + ":" + JSONObject.toJSONString(responseStatus) + "]";
+            throw new SystemRuntimeApiException(error, alarmErrorCode);
+        }
+        if (StringUtils.equals(this.code, "200") &&
+                (Objects.isNull(responseStatus) || this.responseStatus.isNull() || Objects.equals(responseStatus.statusCode, "1"))) {
+            if (checkData && Objects.isNull(data)) {
+                String error = errMsg + ", call isapi error, data is empty, error [" + code + ":" + msg + ":" + JSONObject.toJSONString(responseStatus) + "]";
+                throw new SystemRuntimeApiException(error, alarmErrorCode);
+            }
+            return data;
+        }
+        String error = errMsg + ", call isapi error, error [" + code + ":" + msg + ":" + JSONObject.toJSONString(responseStatus) + "]";
+        throw new SystemRuntimeApiException(error, alarmErrorCode);
+    }
+
+    public void checkResponseStatus(String alarmErrorCode, String errMsg) {
+        if (StringUtils.equals(code, "200") && Objects.nonNull(responseStatus) && StringUtils.equals("1", responseStatus.getStatusCode())) {
+            return;
+        }
+        String error = errMsg + ", call isapi error, error [" + code + ":" + msg + ":" + JSONObject.toJSONString(responseStatus) + "]";
+        throw new SystemRuntimeApiException(error, alarmErrorCode);
+    }
+
+    @Data
+    @JacksonXmlRootElement(localName = "ResponseStatus")
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class ResponseStatus {
+        /**
+         * 请求的URL
+         */
+        @JacksonXmlProperty
+        private String requestURL;
+
+        /**
+         * 状态码
+         */
+        @JacksonXmlProperty
+        private String statusCode;
+
+        /**
+         * 状态信息
+         */
+        @JacksonXmlProperty
+        private String statusString;
+
+        /**
+         * 详细错误码英文描述
+         */
+        @JacksonXmlProperty
+        private String subStatusCode;
+
+        /**
+         * 自定义错误信息描述
+         */
+        @JacksonXmlProperty
+        private String description;
+
+        /**
+         * 错误码
+         */
+        @JacksonXmlProperty
+        private String errorCode;
+
+        /**
+         * 错误信息
+         */
+        @JacksonXmlProperty
+        private String errorMsg;
+
+        private boolean isNull() {
+            return requestURL == null && statusCode == null && statusString == null && subStatusCode == null
+                    && description == null && errorMsg == null && errorCode == null;
+        }
+
+
+    }
+}
+
+
+==================================================================================================
+
+
+
+    /**
+     * 配置单个继电器控制
+     * /ISAPI/SecurityCP/control/outputs/<outputID>?format=json
+     *
+     * @return 是否配置成功
+     */
+    public static void setRelayControl(RelayControlReq relayControlReq, String deviceSerial, TokenDTO ezToken, Integer outputId, DeviceInfoResponseDTO device) {
+        EzvizRequest ezvizRequest = EzvizRequest.builder()
+                .method(HTTPMethods.PUT)
+                .accessToken(ezToken.getAccessToken())
+                .domain(ezToken.getAreaDomain())
+                .deviceSerial(deviceSerial)
+                .param(JSONObject.toJSONString(relayControlReq))
+                .contentType(MediaType.APPLICATION_JSON_VALUE)
+                .build();
+        // 走认证
+        DeviceAuthorizationInfo deviceAuthorizationInfo = getDeviceAuthorizationInfo(device);
+        if (isAuthInterface(deviceAuthorizationInfo)) {
+            ezvizRequest.setIsApiSuffix(Constants.ISAPI_SUFFIX);
+            ezvizRequest.setUri(Constants.ISAPI_RELAY_CONTROL + outputId + "?format=json");
+            EzvizAuthenticationInfo ezvizAuthenticate = getEzvizAuthenticate(ezToken.getAreaDomain(), ezToken.getAccessToken(), deviceSerial);
+            EzvizResponse<EzvizResponse.ResponseStatus> response = sendV2EzvizRequest(ezvizRequest, EzvizResponse.ResponseStatus.class, deviceAuthorizationInfo, ezvizAuthenticate, false);
+            response.checkResponseStatus(CALL_DEVICE_ERROR, "fail to set relayControl");
+            return;
+        }
+        // 不走认证
+        ezvizRequest.setUrl(ezToken.getAreaDomain() + Constants.NO_AUTH_ISAPI_SUFFIX + Constants.ISAPI_RELAY_CONTROL + outputId + "?format=json");
+        EzvizResponse<EzvizResponse.ResponseStatus> response = sendEzvizRequest(ezvizRequest, EzvizResponse.ResponseStatus.class, false);
+        response.checkResponseStatus(CALL_DEVICE_ERROR, "fail to set relayControl");
+    }
+
